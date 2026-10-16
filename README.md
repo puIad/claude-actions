@@ -15,7 +15,8 @@ One place that runs [claude-code-action](https://github.com/marketplace/actions/
 | `CLAUDE_CODE_OAUTH_TOKEN_TEAM` | `claude setup-token` while signed in to the Team account |
 | `SYNC_TOKEN` | Fine-grained PAT, all repositories: Contents, Secrets and Workflows read/write |
 
-The Claude tokens last a year. To rotate one: `gh secret set <NAME> -R puIad/claude-actions`, then run **Sync**. Run **Check tokens** to see whether both work.
+Set them with `powershell -ExecutionPolicy Bypass -File set-secrets.ps1` (it runs `claude setup-token` for you and checks each paste looks right).
+The Claude tokens last a year. To rotate one, run the script again and skip the other steps, then run **Sync**. Run **Check tokens** to see whether both work.
 
 ## Opt a repo out
 
