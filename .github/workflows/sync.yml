@@ -1,0 +1,28 @@
+# Hourly: install/refresh the Claude stub and token secrets in every repo, so new repos are covered within the hour.
+name: Sync
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Sync repos
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PRO: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          TEAM: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_TEAM }}
+        run: bash sync.sh
+      - name: Keep the schedule alive
+        # GitHub turns off cron in public repos after 60 days without activity; re-enabling resets that clock.
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable sync.yml -R "$GITHUB_REPOSITORY"

@@ -1,0 +1,17 @@
+# Run by hand to see whether each Claude account token works. The JSON result shows the exact error if not.
+name: Check tokens
+
+on: workflow_dispatch
+
+jobs:
+  check:
+    name: ${{ matrix.secret }}
+    strategy:
+      fail-fast: false
+      matrix:
+        secret: [CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN_TEAM]
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx -y @anthropic-ai/claude-code -p "Reply with the single word OK" --output-format json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets[matrix.secret] }}
