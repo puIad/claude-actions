@@ -12,6 +12,7 @@ jobs:
         secret: [CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN_TEAM]
     runs-on: ubuntu-latest
     steps:
-      - run: npx -y @anthropic-ai/claude-code -p "Reply with the single word OK" --output-format json
+      # Logs here are public: print only the verdict and the error text.
+      - run: npx -y @anthropic-ai/claude-code -p "Reply with the single word OK" --output-format json | jq '{is_error, api_error_status, result}'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets[matrix.secret] }}

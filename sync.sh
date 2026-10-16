@@ -12,10 +12,13 @@ content=$(base64 -w0 stub.yml)
 run() { if [ -n "${DRY:-}" ]; then echo "  would: ${*:1:4}"; else "$@"; fi; }
 fail=0
 
-repos=$(gh repo list "$owner" --source --no-archived --limit 1000 \
-  --json nameWithOwner,isEmpty,repositoryTopics \
-  --jq '.[] | select(.isEmpty | not) | select([.repositoryTopics[]?.name] | index("no-claude") | not) | .nameWithOwner') || exit 1
-[ -n "$repos" ] || { echo "no repos visible to the token"; exit 1; }
+list=$(gh repo list "$owner" --source --no-archived --limit 1000 \
+  --json nameWithOwner,isEmpty,isPrivate,repositoryTopics \
+  --jq '.[] | select(.isEmpty | not) | select([.repositoryTopics[]?.name] | index("no-claude") | not) | "\(.nameWithOwner) \(.isPrivate)"') || exit 1
+[ -n "$list" ] || { echo "no repos visible to the token"; exit 1; }
+# This repo's Actions logs are public, so hide private repo names in them.
+while read -r repo private; do if [ "$private" = true ]; then echo "::add-mask::$repo"; fi; done <<< "$list"
+repos=$(cut -d' ' -f1 <<< "$list")
 
 for repo in $repos; do
   echo "$repo"
