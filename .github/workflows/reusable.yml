@@ -46,7 +46,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: ${{ env.PROMPT }}
-          claude_args: ${{ env.TOOLS }}      - name: Retry with Team account
+          claude_args: ${{ env.TOOLS }}
+      - name: Retry with Team account
         if: steps.pro.outcome == 'failure'
         uses: anthropics/claude-code-action@v1
         with:
