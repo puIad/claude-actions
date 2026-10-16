@@ -26,8 +26,10 @@ jobs:
         REPO: ${{ github.repository }}
         PR NUMBER: ${{ github.event.pull_request.number }}
 
-        Review this pull request. The PR branch is checked out in the working directory.
-        If the repo has a CLAUDE.md or AGENTS.md, read it first and judge the change against the project's intent.
+        Review this pull request. First run `gh pr diff ${{ github.event.pull_request.number }}` on its own (no pipes):
+        only the changes in that diff are under review. The PR branch is checked out in the working directory,
+        so read surrounding files for context. If the repo has a CLAUDE.md or AGENTS.md, read it and judge the
+        change against the project's intent.
         Report only real problems: bugs, security holes, data loss, broken callers, missing error handling.
         Skip style nits and anything you are not confident is wrong.
         Put each problem on its line with mcp__github_inline_comment__create_inline_comment (confirmed: true).
@@ -45,6 +47,7 @@ jobs:
           github_token: ${{ github.token }}
           prompt: ${{ env.PROMPT }}
           claude_args: ${{ env.TOOLS }}
+          show_full_output: true  # TEMP: debugging the test PR
       - name: Retry with Team account
         if: steps.pro.outcome == 'failure'
         uses: anthropics/claude-code-action@v1
