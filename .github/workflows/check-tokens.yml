@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Logs here are public: print only the verdict and the error text.
-      - run: npx -y @anthropic-ai/claude-code -p "Reply with the single word OK" --output-format json | jq '{is_error, api_error_status, result}'
+      - run: |
+          npx -y @anthropic-ai/claude-code --model opus --effort high -p "Reply with the single word OK" --output-format json | jq '{is_error, api_error_status, result, models: (.modelUsage | keys)}'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets[matrix.secret] }}

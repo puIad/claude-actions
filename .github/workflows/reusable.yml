@@ -34,7 +34,8 @@ jobs:
         Skip style nits and anything you are not confident is wrong.
         Put each problem on its line with mcp__github_inline_comment__create_inline_comment (confirmed: true).
         Finish with one short `gh pr comment` summary. If you found nothing, say so in one line.
-      TOOLS: --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+      # "opus" is the CLI alias for the newest Opus, so new releases are picked up without edits.
+      TOOLS: --model opus --effort high --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
     steps:
       - uses: actions/checkout@v6
         with:
