@@ -12,11 +12,20 @@ on:
 
 jobs:
   review:
-    # Fork PRs get no secrets, so only same-repo PRs. Drafts wait for ready_for_review.
+    # One review per PR: when it opens, leaves draft or reopens. A push runs it only while the PR has no review yet:
+    # GitHub skips the "opened" run while a PR conflicts with its base, and a run can fail on both accounts.
+    # "@claude review" in a PR comment, from someone with write access, runs it again (a re-review after fixes).
+    # Fork PRs get no secrets, so only same-repo PRs.
     if: >-
-      github.event_name == 'pull_request' &&
-      !github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'pull_request' &&
+        !github.event.pull_request.draft &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '@claude review') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    # one at a time per PR, so a push right after "opened" sees that review before deciding
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,23 +33,43 @@ jobs:
     env:
       PROMPT: |
         REPO: ${{ github.repository }}
-        PR NUMBER: ${{ github.event.pull_request.number }}
+        PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
 
         Review this pull request with the ponytail:ponytail-review skill: invoke it with the Skill tool first and
-        follow its method and output format. First run `gh pr diff ${{ github.event.pull_request.number }}` on its own
+        follow its method and output format. First run `gh pr diff ${{ github.event.pull_request.number || github.event.issue.number }}` on its own
         (no pipes): only the changes in that diff are under review. The PR branch is checked out in the working
         directory, so read callers and surrounding files for context. If the repo has a CLAUDE.md or AGENTS.md, read
         it and judge the change against the project's intent.
         Put each finding that points at a line on that line with mcp__github_inline_comment__create_inline_comment
         (confirmed: true). Then post the skill's full report (What this change does, numbered findings, Verdict)
-        as one `gh pr comment`.
+        as one `gh pr comment`, ending with the line `<!-- claude-review -->`. If the PR already has a review from you,
+        this is a re-review: read it with `gh pr view --comments` and say which of its findings are now fixed.
       # "opus" is the CLI alias for the newest Opus, so new releases are picked up without edits.
       TOOLS: --model opus --effort high --allowedTools "Skill,Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
     steps:
-      - uses: actions/checkout@v6
+      # A push reviews only a PR with no review yet; a comment only a same-repo PR
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          pr=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json headRepositoryOwner,headRepository,comments)
+          head=$(jq -r '"\(.headRepositoryOwner.login)/\(.headRepository.name)"' <<< "$pr")
+          reviewed=$(jq '[.comments[] | select((.author.login | test("github-actions")) and (.body | test("<!-- claude-review -->|^## Ponytail review")))] | length' <<< "$pr")
+          run=true
+          if [ "$head" != "$GITHUB_REPOSITORY" ]; then run=false; fi
+          if [ "$ACTION" = synchronize ] && [ "$reviewed" -gt 0 ]; then run=false; fi
+          echo "head $head, reviews so far $reviewed, run $run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
+          # a comment's run starts on the default branch: check out the PR
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || '' }}
       - id: pro
+        if: steps.gate.outputs.run == 'true'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
@@ -62,10 +91,13 @@ jobs:
           plugins: ponytail@ponytail
 
   mention:
-    # "@claude ..." in a PR or issue comment. The action itself ignores commenters without write access.
+    # "@claude ..." in a PR or issue comment. The action itself ignores commenters without write access. "@claude review"
+    # on a PR is the review job's.
     if: >-
       ((github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
-        contains(github.event.comment.body, '@claude')) ||
+        contains(github.event.comment.body, '@claude') &&
+        !(github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+          startsWith(github.event.comment.body, '@claude review'))) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
     runs-on: ubuntu-latest
     permissions:
