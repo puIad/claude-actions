@@ -24,7 +24,8 @@ jobs:
         startsWith(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     # one at a time per PR, so a push right after "opened" sees that review before deciding. A comment's run gets its own
-    # group: GitHub keeps one waiting run per group, and a push's run would cancel a waiting "@claude review"
+    # group: GitHub keeps one waiting run per group, and a push's run would cancel a waiting "@claude review". The cost: a
+    # comment's review and a push's catch-up review can overlap on a PR with no review yet (rare, two reports)
     concurrency:
       group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
     runs-on: ubuntu-latest
