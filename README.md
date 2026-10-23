@@ -4,7 +4,8 @@ One place that runs [claude-code-action](https://github.com/marketplace/actions/
 
 - `sync.yml` runs hourly. It puts `stub.yml` at `.github/workflows/claude.yml` in every non-fork, non-archived repo and copies the token secrets in. New repos are covered within the hour; run it by hand for an instant sync.
 - The stub calls `reusable.yml`, so changing the prompt or behaviour here changes every repo at once.
-- Each PR gets one review when it opens (or leaves draft). Comment `@claude ...` on a PR or issue to ask for anything else, including another review.
+- Each PR gets one review when it opens (or leaves draft, or reopens). If that run never happened (GitHub skips it while the PR conflicts with its base) or failed, the next push to the PR runs it.
+- Comment `@claude review` on a PR to review it again, for example after fixing what the review found. Comment `@claude ...` on a PR or issue to ask for anything else.
 - Every run uses the Pro account first and retries with the Team account only when the Pro run fails.
 
 ## Secrets (in this repo only)
