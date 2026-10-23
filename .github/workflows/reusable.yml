@@ -23,9 +23,11 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
         startsWith(github.event.comment.body, '@claude review') &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
-    # one at a time per PR, so a push right after "opened" sees that review before deciding
+    # one at a time per PR, so a push right after "opened" sees that review before deciding. A comment's run gets its own
+    # group: GitHub keeps one waiting run per group, and a push's run would cancel a waiting "@claude review". The cost: a
+    # comment's review and a push's catch-up review can overlap on a PR with no review yet (rare, two reports)
     concurrency:
-      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,20 +49,24 @@ jobs:
       # "opus" is the CLI alias for the newest Opus, so new releases are picked up without edits.
       TOOLS: --model opus --effort high --allowedTools "Skill,Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
     steps:
-      # A push reviews only a PR with no review yet; a comment only a same-repo PR
+      # A push reviews only a PR with no review yet; a comment only a same-repo PR, and says so on a fork's
       - id: gate
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
           ACTION: ${{ github.event.action }}
         run: |
-          pr=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json headRepositoryOwner,headRepository,comments)
-          head=$(jq -r '"\(.headRepositoryOwner.login)/\(.headRepository.name)"' <<< "$pr")
-          reviewed=$(jq '[.comments[] | select((.author.login | test("github-actions")) and (.body | test("<!-- claude-review -->|^## Ponytail review")))] | length' <<< "$pr")
+          pr=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json isCrossRepository,comments)
+          fork=$(jq .isCrossRepository <<< "$pr")
+          # the marker, or the report's own heading and opening, in case a review leaves the marker out
+          reviewed=$(jq '[.comments[] | select((.author.login | test("github-actions")) and (.body | test("<!-- claude-review -->|^## Ponytail review|What this change does:")))] | length' <<< "$pr")
           run=true
-          if [ "$head" != "$GITHUB_REPOSITORY" ]; then run=false; fi
+          if [ "$fork" = true ]; then
+            run=false
+            if [ "$ACTION" = created ]; then gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "Reviews run only on PRs from branches in this repo, not forks."; fi
+          fi
           if [ "$ACTION" = synchronize ] && [ "$reviewed" -gt 0 ]; then run=false; fi
-          echo "head $head, reviews so far $reviewed, run $run"
+          echo "fork $fork, reviews so far $reviewed, run $run"
           echo "run=$run" >> "$GITHUB_OUTPUT"
       - if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v6
